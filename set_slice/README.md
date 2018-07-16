@@ -15,8 +15,8 @@ A Rust macro for easily assigning to slices
 
 ## set_vec by example
 
+you can set the entire contents of the slice to whatever you want
 ```Rust
-// you can set the entire contents of the slice to whatever you want
 let slice = &mut [0; 3] as &mut [i32]; // this is to simulate having only a slice without knowning its size
 
 set_slice! {
@@ -33,8 +33,8 @@ set_slice! {
 assert_eq!(slice, &[1, 2, 3, 0, 0]);
 ```
 
+you can also do multiple assigns in one macro call
 ```Rust
-// ... you can also do multiple assigns in one macro call
 let mut slice = [0; 5];
 let slice = &mut slice as &mut [i32];
 
@@ -53,7 +53,7 @@ let array = [1, 2];
 let vec = vec![3, 4];
 
 set_slice! {
-    slice[..2]: (2) = array; // array is moved into set_slice
+    slice[..2]: (2) = array;
     slice[3..]: (2) = vec; // vec is moved into set_slice
 }
 println!("array = {:?}", array); // fine, array is a copy type
@@ -94,9 +94,10 @@ println!("vec = {:?}", vec); // this is fine, vec was borrowed
 assert_eq!(slice, &[A::One, A::One, A::Zero, A::One, A::One]);
 ```
 
-## all possible valid use cases
+## valid use cases
 
-### with lists, and ranges (these ranges can be mixed and matched with the other sub-sections)
+### with lists, and ranges
+these ranges can be mixed and matched with the other sub-sections
 ```Rust
 let slice = &mut [0; 3] as &mut [i32];
 let init = 1;
