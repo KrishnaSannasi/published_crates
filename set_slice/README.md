@@ -1,8 +1,8 @@
-# set_vec
+# set_slice
 
 A Rust macro for easily assigning to slices
 
-## rules for using set_vec
+## rules for using set_slice
 
 1. you can only use slices, or anything that implements Deref<Target = [T]> to set to slices
 2. lvalues must either be identifiers or indexes
@@ -12,11 +12,11 @@ A Rust macro for easily assigning to slices
     1. the input slice must be the same size as the slice you assign to
     2. if you selected a part of the slice to assign to then the input slice must match the size of the selected part
 4. the types must match
-    1. **note:** set_vec uses a generic function internally to figure out type information
+    1. **note:** set_slice uses a generic function internally to figure out type information
 5. for move values, the size of the slice must be known at compile time, as a constexpr
 6. for refereces, the internal types must be Clone or Copy to work
 
-## set_vec by example
+## set_slice by example
 
 you can set the entire contents of the slice to whatever you want
 ```Rust
