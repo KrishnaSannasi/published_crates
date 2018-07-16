@@ -1,3 +1,4 @@
+#![no_std]
 /// any branch that has an '@' preceeding is internal to the macro
 #[macro_export]
 macro_rules! set_slice {
@@ -38,7 +39,7 @@ macro_rules! set_slice {
             let value = value as *mut [T] as *mut [T; $size];
             let slice = slice as *mut [T] as *mut [T; $size];
             
-            unsafe { ::std::ptr::swap(slice, value); }
+            unsafe { $crate::core::ptr::swap(slice, value); }
         }
 
         let mut val = $value; // capture value
@@ -128,6 +129,7 @@ macro_rules! set_slice {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     #[test]
     fn it_works() {
         assert_eq!(2 + 2, 4);
@@ -135,10 +137,10 @@ mod tests {
 
     #[test]
     fn test_move_values() {
-        let mut v = vec![0; 6];
+        let mut v = [0; 6];
         let value = 0;
         let array = [2, 3]; 
-        let vec = vec![4, 5, 6];
+        let vec = [4, 5, 6];
 
         set_slice! {
             v[0..1] = value;
@@ -152,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_full_range() {
-        let mut v = vec![0; 10];
+        let mut v = [0; 10];
 
         set_slice! {
             v[..] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
@@ -160,7 +162,7 @@ mod tests {
 
         assert!(&v == &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-        let mut v = vec![0; 10];
+        let mut v = [0; 10];
 
         set_slice! {
             v = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
@@ -171,10 +173,10 @@ mod tests {
 
     #[test]
     fn set_slice_test() {
-        let mut v = vec![0; 8];
-        let values = vec![4, 5, 6];
+        let mut v = [0; 8];
+        let values = [4, 5, 6];
         let array = [0, 2];
-        let deref = vec![7, 8];
+        let deref = [7, 8];
 
         set_slice! {
             v[1..=2] = copy &[5, 3];
