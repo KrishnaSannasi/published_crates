@@ -7,7 +7,7 @@ A Rust macro for easily assigning to slices
 1. you can only use slices, or anything that implements Deref<Target = [T]> to set to slices
 2. range checks are all done at run-time
     1. the input slice must be the same size as the slice you assign to
-    2. if you are selected a part of the slice to assign to then the input slice must match the size of the selected part
+    2. if you selected a part of the slice to assign to then the input slice must match the size of the selected part
 3. the types must match
     1. **note:** set_vec uses a generic function internally to figure out type information
 4. for move values, the size of the slice must be known at compile time, as a constexpr
@@ -35,8 +35,7 @@ assert_eq!(slice, &[1, 2, 3, 0, 0]);
 
 you can also do multiple assigns in one macro call
 ```Rust
-let mut slice = [0; 5];
-let slice = &mut slice as &mut [i32];
+let slice = &mut [0; 5] as &mut [i32];
 
 set_slice! {
     slice[..2] = 1, 2;
