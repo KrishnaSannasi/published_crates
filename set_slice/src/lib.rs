@@ -19,7 +19,7 @@ macro_rules! set_slice {
     (@@$option:ident $slice:expr, $value:expr) => {
         compile_error!(stringify!(invalid option $option, valid options are copy, clone))
     };
-    (@@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr;) => {{
+    (@@$($ln:tt),* => $slice:expr, $size:expr, $value:expr) => {{
         const LINE: usize = set_slice!(@count $($ln)*);
 
         // function used for type inference
@@ -42,11 +42,11 @@ macro_rules! set_slice {
         }
 
         let mut val = $value; // capture value
-        set(&mut $slice[$($range)*], &mut val);
+        set(&mut $slice, &mut val);
     }};
-    (@@$($ln:tt),* => $slice:ident[$($range:tt)*] = $option:ident $value:expr;) => {{
+    (@@$($ln:tt),* => $slice:expr, $option:ident $value:expr) => {{
         let input = $value;
-        let slice = &mut $slice[$($range)*];
+        let slice = &mut $slice;
         let (il, sl) = (input.len(), slice.len());
 
         if il != sl {
@@ -61,8 +61,13 @@ macro_rules! set_slice {
     // the line number is needed
 
     // this pattern is for values that will be moved into the slice
+    (@$($ln:tt),* => $slice:ident: ($size:expr) = $value:expr; $($rest:tt)*) => {
+        set_slice!(@@$($ln),* => $slice, $size, $value);
+        set_slice!(@$($ln,)* 0 => $($rest)*);
+    };
+    // this pattern is for values that will be moved into the slice
     (@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
-        set_slice!(@@$($ln),* => $slice[$($range)*]: ($size) = $value;);
+        set_slice!(@@$($ln),* => $slice[$($range)*], $size, $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
@@ -71,14 +76,26 @@ macro_rules! set_slice {
     };
 
     // this pattern if for values that will be copied/cloned into the slice
+    (@$($ln:tt),* => $slice:ident = $option:ident $value:expr; $($rest:tt)*) => {
+        set_slice!(@@$($ln),* => $slice, $option $value);
+        set_slice!(@$($ln,)* 0 => $($rest)*);
+    };
+
+    // this pattern if for values that will be a list of expressions
+    (@$($ln:tt),* => $slice:ident = $($value:expr),+; $($rest:tt)*) => {
+        set_slice!(@@$($ln),* => $slice, set_slice!(@count $( $value )+), [$($value),+]);
+        set_slice!(@$($ln,)* 0 => $($rest)*);
+    };
+
+    // this pattern if for values that will be copied/cloned into the slice
     (@$($ln:tt),* => $slice:ident[$($range:tt)*] = $option:ident $value:expr; $($rest:tt)*) => {
-        set_slice!(@@$($ln),* => $slice[$($range)*] = $option $value;);
+        set_slice!(@@$($ln),* => $slice[$($range)*], $option $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
     // this pattern if for values that will be a list of expressions
     (@$($ln:tt),* => $slice:ident[$($range:tt)*] = $($value:expr),+; $($rest:tt)*) => {
-        set_slice!(@@$($ln),* => $slice[$($range)*]: (set_slice!(@count $( $value )+)) = [$($value),+];);
+        set_slice!(@@$($ln),* => $slice[$($range)*], set_slice!(@count $( $value )+), [$($value),+]);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
@@ -95,12 +112,6 @@ macro_rules! set_slice {
         compile_error!("punctuation is missing!");
     };
 
-    // this is to capture the whole group
-    (@$($ln:tt),* => $slice:ident $($rest:tt)*) => {
-        // compile_error!(stringify!(@$($ln),* => $slice $($rest)*));
-        set_slice!(@$($ln),* => $slice[..] $($rest)*);
-    };
-    
     (@$($ln:tt),* => ) => {};
     () => {};
     
