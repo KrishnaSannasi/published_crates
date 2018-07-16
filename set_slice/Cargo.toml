@@ -6,7 +6,7 @@ repository = "https://github.com/KrishnaSannasi/published_crates/tree/master/set
 description = "A macro for assigning values to slices"
 keywords = ["slice", "assign", "set"]
 categories = ["no-std", "embedded"]
-license = "Apache License 2.0"
+license = "Apache-2.0"
 license-file = "LICENSE.md"
 readme = "README.md"
 
