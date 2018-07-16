@@ -1,102 +1,118 @@
-#[macro_export]
-macro_rules! count {
-    ()        => {0usize};
-    ($one:tt) => {1usize};
-    ($($pairs:tt $_p:tt)*) => {
-        count!($($pairs)*) << 1usize
-    };
-    ($odd:tt $($rest:tt)*) => {
-        count!($($rest)*) | 1usize
-    };
-}
-
 /// any branch that has an '@' preceeding is internal to the macro
 #[macro_export]
 macro_rules! set_slice {
-    (@$($ln:tt),* => &mut $to_slice:ident[$($range:tt)*]: ($size:expr) = $value:expr;) => {
-        unsafe {
-            // capture value
-            let mut a = $value;
-
-            // get mutable refernce to be turned into pointer
-            let input = &mut a;
-
-            // get slice 
-            let slice = &mut $to_slice[$($range)*];
-
-            // input validation to make sure it is a safe operation
-            let (il, sl) = (input.len(), slice.len());
-
-            if il != sl {
-                panic!("ln({}) input length invalid: {}, expected: {}", count!($($ln)*), il, sl)
-            }
-
-            if sl != $size {
-                panic!("ln({}) slice length invalid: {}, expected: {}", count!($($ln)*), sl, $size)
-            }
-
-            /// this function is used for type inference
-            #[inline(always)]
-            unsafe fn do_swap<T>(slice: &mut [T], input: &mut [T]) {
-                let input = input as *mut [T] as *mut [T; $size];
-                let slice = slice as *mut [T] as *mut [T; $size];
-                ::std::ptr::swap(slice, input);
-            }
-
-            // swap pointers of input and slice
-            do_swap(slice, input);
-        }
+    (@count )        => {0usize};
+    (@count $one:tt) => {1usize};
+    (@count $($pairs:tt $_p:tt)*) => {
+        set_slice!(@count $($pairs)*) << 1usize
     };
-    (@$($ln:tt),* => &mut $to_slice:ident[$($range:tt)*] = ref $value:expr;) => {{
+    (@count $odd:tt $($rest:tt)*) => {
+        set_slice!(@count $($rest)*) | 1usize
+    };
+
+    (@@copy $slice:expr, $value:expr) => {
+        $slice.copy_from_slice($value);
+    };
+    (@@clone $slice:expr, $value:expr) => {
+        $slice.clone_from_slice($value);
+    };
+    (@@$option:ident $slice:expr, $value:expr) => {
+        compile_error!(stringify!(invalid option $option, valid options are copy, clone))
+    };
+    (@@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr;) => {{
+        const LINE: usize = set_slice!(@count $($ln)*);
+
+        // function used for type inference
+        #[inline(always)]
+        fn set<T>(slice: &mut [T], value: &mut [T]) {
+            let (sl, vl) = (slice.len(), value.len());
+
+            if sl != $size { // validate slice size
+                panic!("line {}: slice length ({}) is invalid, excepted: {}", LINE, sl, $size)
+            }
+
+            if vl != $size { // validate value size
+                panic!("line {}: value length ({}) is invalid, excepted: {}", LINE, vl, $size)
+            }
+            
+            let value = value as *mut [T] as *mut [T; $size];
+            let slice = slice as *mut [T] as *mut [T; $size];
+            
+            unsafe { ::std::ptr::swap(slice, value); }
+        }
+
+        let mut val = $value; // capture value
+        set(&mut $slice[$($range)*], &mut val);
+    }};
+    (@@$($ln:tt),* => $slice:ident[$($range:tt)*] = $option:ident $value:expr;) => {{
         let input = $value;
-        let slice = &mut $to_slice[$($range)*];
+        let slice = &mut $slice[$($range)*];
         let (il, sl) = (input.len(), slice.len());
 
         if il != sl {
-            panic!("ln({}) input length invalid: {}, expected: {}", count!($($ln)*), il, sl)
+            panic!("ln({}) input length invalid: {}, expected: {}", set_slice!(@count $($ln)*), il, sl)
         }
 
-        slice.copy_from_slice(input);
+        set_slice!(@@$option slice, input);
     }};
-    
-    // ln is line number, for better error messages
-    // it is stored as a list of zeros, which is counted (O(log n)) when
-    // the line number is needed
-    (&mut $to_slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
-        set_slice!(@0 => &mut $to_slice[$($range)*]: ($size) = $value;);
-        set_slice!(@0, 0 => $($rest)*);
-    };
-    (&mut $to_slice:ident[$($range:tt)*] = $($value:expr),*; $($rest:tt)*) => {
-        set_slice!(@0 => &mut $to_slice[$($range)*]: (count!($( $value )*)) = [$($value),*];);
-        set_slice!(@0, 0 => $($rest)*);
-    };
-    (&mut $to_slice:ident[$($range:tt)*] = ref $value:expr; $($rest:tt)*) => {
-        set_slice!(@0 => &mut $to_slice[$($range)*] = ref $value;);
-        set_slice!(@0, 0 => $($rest)*);
-    };
-    
-    // full range sugar
-    (&mut $to_slice:ident $($rest:tt)*) => {
-        set_slice!(&mut $to_slice[..] $($rest)*);
-    };
 
     // ln is line number, for better error messages
     // it is stored as a list of zeros, which is counted (O(log n)) when
     // the line number is needed
-    (@$($ln:tt),* => &mut $to_slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
-        set_slice!(@$($ln),* => &mut $to_slice[$($range)*]: ($size) = $value;);
+
+    // this pattern is for values that will be moved into the slice
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
+        set_slice!(@@$($ln),* => $slice[$($range)*]: ($size) = $value;);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
-    (@$($ln:tt),* => &mut $to_slice:ident = $($value:expr),*; $($rest:tt)*) => {
-        set_slice!(@$($ln),* => &mut $to_slice[..]: (count!($( $value )*)) = [$($value),*];);
+
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*]: $($rest:tt)*) => {
+        compile_error!("invalid size: size must be an expression surrouned by parentheses");
+    };
+
+    // this pattern if for values that will be copied/cloned into the slice
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = $option:ident $value:expr; $($rest:tt)*) => {
+        set_slice!(@@$($ln),* => $slice[$($range)*] = $option $value;);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
-    (@$($ln:tt),* => &mut $to_slice:ident[$($range:tt)*] = ref $value:expr; $($rest:tt)*) => {
-        set_slice!(@$($ln),* => &mut $to_slice[$($range)*] = ref $value;);
+
+    // this pattern if for values that will be a list of expressions
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = $($value:expr),+; $($rest:tt)*) => {
+        set_slice!(@@$($ln),* => $slice[$($range)*]: (set_slice!(@count $( $value )+)) = [$($value),+];);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
+
+    // this pattern if for values that will be copied/cloned into the slice
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = ref $value:expr; $($rest:tt)*) => {
+        compile_error!("option is missing: value should be of the form: \"{copy, clone} ref value\"")
+    };
+
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = ; $($rest:tt)*) => {
+        compile_error!("there must be a non-zero number of arguments in a list");
+    };
+
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] $($rest:tt)*) => {
+        compile_error!("punctuation is missing!");
+    };
+
+    // this is to capture the whole group
+    (@$($ln:tt),* => $slice:ident $($rest:tt)*) => {
+        // compile_error!(stringify!(@$($ln),* => $slice $($rest)*));
+        set_slice!(@$($ln),* => $slice[..] $($rest)*);
+    };
+    
     (@$($ln:tt),* => ) => {};
     () => {};
+    
+    (@$($ln:tt),* => [$($range:tt)*] $($rest:tt)*) => {
+        compile_error!("missing identifier");
+    };
+    (@$($ln:tt),* => $($rest:tt)+) => {
+        compile_error!("missing rvalue");
+    };
+    ($($rest:tt)+) => {
+        set_slice!(@0 => $($rest)+);
+    };
 }
 
 #[cfg(test)]
@@ -109,14 +125,16 @@ mod tests {
     #[test]
     fn test_move_values() {
         let mut v = vec![0; 6];
-        let values = vec![4, 5, 6];
+        let value = 0;
+        let array = [2, 3]; 
+        let vec = vec![4, 5, 6];
 
         set_slice! {
-            &mut v[0..1] = 0;
-            &mut v[1..3]: (2) = [2, 3];
-            &mut v[3..]: (3) = values;
+            v[0..1] = value;
+            v[1..3]: (2) = array;
+            v[3..]: (3) = vec;
         }
-        // println!("{:?}", values); // COMPILE ERROR: use after move
+        // println!("{:?}", vec); // COMPILE ERROR: use after move
 
         assert!(&v == &[0, 2, 3, 4, 5, 6]);
     }
@@ -126,7 +144,7 @@ mod tests {
         let mut v = vec![0; 10];
 
         set_slice! {
-            &mut v[..] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
+            v[..] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
         }
 
         assert!(&v == &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
@@ -134,7 +152,7 @@ mod tests {
         let mut v = vec![0; 10];
 
         set_slice! {
-            &mut v = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
+            v = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
         }
 
         assert!(&v == &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
@@ -148,10 +166,10 @@ mod tests {
         let deref = vec![7, 8];
 
         set_slice! {
-            &mut v[1..=2] = ref &[5, 3];
-            &mut v[3..6] = ref &values;
-            &mut v[..2] = ref &array;
-            &mut v[6..] = ref &deref;
+            v[1..=2] = copy &[5, 3];
+            v[3..6] = copy &values;
+            v[..2] = copy &array;
+            v[6..] = copy &deref;
         }
         let _ = values;
 
