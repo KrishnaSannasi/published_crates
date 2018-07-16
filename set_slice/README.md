@@ -7,7 +7,7 @@ A Rust macro for easily assigning to slices
 1. you can only use slices, or anything that implements Deref<Target = [T]> to set to slices
 2. lvalues must either be identifiers or indexes
     1. identifier: array, b, vector, something_else
-    2. indexes: array[1..], b[..], vector[1..4], something_else[12..=2]
+    2. indexes: array[1..], b[..], vector[1..4], something_else[12..=14]
 3. range checks are all done at run-time
     1. the input slice must be the same size as the slice you assign to
     2. if you selected a part of the slice to assign to then the input slice must match the size of the selected part
