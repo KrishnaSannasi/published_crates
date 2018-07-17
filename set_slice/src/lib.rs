@@ -184,10 +184,6 @@ macro_rules! set_slice {
         compile_error!("invalid size: size must be an expression surrouned by parentheses");
     };
 
-    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = ref $value:expr; $($rest:tt)*) => {
-        compile_error!("option is missing: value should be of the form: \"{copy, clone} ref value\"")
-    };
-
     (@$($ln:tt),* => $slice:ident[$($range:tt)*] = ; $($rest:tt)*) => {
         compile_error!("there must be a non-zero number of arguments in a list");
     };
