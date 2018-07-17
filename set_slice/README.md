@@ -2,6 +2,10 @@
 
 A Rust macro for easily assigning to slices
 
+[![Latest version](https://img.shields.io/crates/v/set_slice.svg)](https://crates.io/crates/set_slice)
+[![Documentation](https://docs.rs/set_slice/badge.svg)](https://docs.rs/set_slice)
+[![License](https://img.shields.io/crates/l/set_slice.svg)](https://github.com/KrishnaSannasi/published_crates/blob/master/set_slice/LICENSE.md)
+
 ## rules for using set_slice
 
 1. you can only use slices, or anything that implements Deref<Target = [T]> to set to slices
