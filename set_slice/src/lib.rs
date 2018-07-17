@@ -144,9 +144,7 @@ macro_rules! __set_slice_internals {
     }};
     ($($ln:tt),* => ref $slice:expr, $size:expr, $value:expr) => {{
         const LINE: usize = count!($($ln)*);
-        let input: &_ = $value;
-        let slice = &mut $slice;
-
+        
         #[inline(always)]
         fn set<T>(slice: &mut [T], value: &[T]) {
             let (sl, vl) = (slice.len(), value.len());
@@ -161,6 +159,9 @@ macro_rules! __set_slice_internals {
                 *slice = $crate::__transmute_copy_mem(value);
             }
         }
+
+        let input: &_ = $value;
+        let slice = &mut $slice;
 
         set(slice, input);
     }};
@@ -212,6 +213,33 @@ macro_rules! set_slice {
     };
 
     // errors and terminals
+    (@$($ln:tt),* => unsafe $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
+        compile_error!("Moving values into the slice is safe");
+    };
+    (@$($ln:tt),* => unsafe $slice:ident: ($size:expr) = $value:expr; $($rest:tt)*) => {
+        compile_error!("Moving values into the slice is safe");
+    };
+    
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = ref $value:expr; $($rest:tt)*) => {
+        compile_error!("Copying arbitrary references in unsafe");
+    };
+    (@$($ln:tt),* => $slice:ident: ($size:expr) = ref $value:expr; $($rest:tt)*) => {
+        compile_error!("Copying arbitrary references in unsafe");
+    };
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = ref $value:expr; $($rest:tt)*) => {
+        compile_error!("Copying arbitrary references in unsafe");
+    };
+    (@$($ln:tt),* => $slice:ident= ref $value:expr; $($rest:tt)*) => {
+        compile_error!("Copying arbitrary references in unsafe");
+    };
+    
+    (@$($ln:tt),* => unsafe $slice:ident[$($range:tt)*] = ref $value:expr; $($rest:tt)*) => {
+        compile_error!("Unkown size: size must be an expression surrouned by parentheses");
+    };
+    (@$($ln:tt),* => unsafe $slice:ident= ref $value:expr; $($rest:tt)*) => {
+        compile_error!("Unkown size: size must be an expression surrouned by parentheses");
+    };
+
     (@$($ln:tt),* => $slice:ident: $($rest:tt)*) => {
         compile_error!("Invalid size: size must be an expression surrouned by parentheses");
     };

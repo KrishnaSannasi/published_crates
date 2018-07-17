@@ -17,8 +17,8 @@ A Rust macro for easily assigning to slices
     2. if you selected a part of the slice to assign to then the input slice must match the size of the selected part
 4. the types must match
     1. **note:** set_slice uses a generic function internally to figure out type information
-5. for move values, the size of the slice must be known at compile time, as a constexpr
-6. for refereces, the internal types must be Clone or Copy to work
+5. for move and unsafe copy values, the size of the slice must be known at compile time, as a constexpr
+6. for references (except for the one marked unsafe), the internal types must be Clone or Copy to work
 
 ## set_slice by example
 
@@ -177,3 +177,12 @@ set_slice! {
     unsafe slice[..2]: (2) = ref &array[1..];
 }
 ```
+
+## known undefined behaviour or unintended
+
+all of these are when using unsafe slice assignment
+
+* an array of Boxed values share the inner values after assignment
+* an array of Mutexes may become corrupted
+    * an array of Arc<Mutex<T>> is fine
+
