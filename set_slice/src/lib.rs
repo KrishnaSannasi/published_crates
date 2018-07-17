@@ -79,28 +79,6 @@ pub use core::ptr::write as __write_ptr;
 
 #[macro_export(local_inner_macros)]
 #[doc(hidden)]
-macro_rules! set_func {
-    (swap $slice:ident $value:ident) => {
-        unsafe { $crate::__swap_ptr($slice, $value); }
-    };
-    ($option:ident $LINE:ident $size:expr) => {
-        #[inline(always)]
-        fn set<T>(slice: &mut [T], value: &[T]) {
-            let (sl, vl) = (slice.len(), value.len());
-
-            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", $LINE, sl, $size);
-            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", $LINE, vl, $size);
-            
-            let value = value as *const [T] as *mut [T] as *mut [T; $size];
-            let slice = slice as *mut [T] as *mut [T; $size];
-            
-            set_func!($option slice value)
-        }
-    };
-}
-
-#[macro_export(local_inner_macros)]
-#[doc(hidden)]
 macro_rules! count {
     ( )        => {0usize};
     ($one:tt) => {1usize};
@@ -128,7 +106,18 @@ macro_rules! __set_slice_internals {
     ($($ln:tt),* => $slice:expr, $size:expr, $value:expr) => {{
         const LINE: usize = count!($($ln)*);
 
-        set_func!(swap LINE $size);
+        #[inline(always)]
+        fn set<T>(slice: &mut [T], value: &[T]) {
+            let (sl, vl) = (slice.len(), value.len());
+
+            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", $LINE, sl, $size);
+            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", $LINE, vl, $size);
+            
+            let value = value as *const [T] as *mut [T] as *mut [T; $size];
+            let slice = slice as *mut [T] as *mut [T; $size];
+            
+            unsafe { $crate::__swap_ptr(slice, value); }
+        }
 
         let val = $value; // capture value
         set(&mut $slice, &val);
@@ -148,6 +137,7 @@ macro_rules! __set_slice_internals {
 /// a macro for setting parts of slices, see crate level docs for more info 
 #[macro_export]
 macro_rules! set_slice {
+    // no range branches
     (@$($ln:tt),* => $slice:ident: ($size:expr) = $value:expr; $($rest:tt)*) => {
         __set_slice_internals!($($ln),* => $slice, $size, $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
@@ -163,6 +153,7 @@ macro_rules! set_slice {
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
+    // with range branches
     (@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
         __set_slice_internals!($($ln),* => $slice[$($range)*], $size, $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
@@ -178,42 +169,43 @@ macro_rules! set_slice {
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
+    // errors and terminals
     (@$($ln:tt),* => $slice:ident: $($rest:tt)*) => {
-        compile_error!("invalid size: size must be an expression surrouned by parentheses");
+        compile_error!("Invalid size: size must be an expression surrouned by parentheses");
     };
 
     (@$($ln:tt),* => $slice:ident = ref $value:expr; $($rest:tt)*) => {
-        compile_error!("option is missing: value should be of the form: \"{copy, clone} ref value\"")
+        compile_error!("Option is missing: value should be of the form: \"{copy, clone} ref value\"")
     };
 
     (@$($ln:tt),* => $slice:ident = ; $($rest:tt)*) => {
-        compile_error!("there must be a non-zero number of arguments in a list");
+        compile_error!("There must be a non-zero number of arguments in a list");
     };
 
     (@$($ln:tt),* => $slice:ident $($rest:tt)*) => {
-        compile_error!("punctuation is missing!");
+        compile_error!("Punctuation is missing!");
     };
 
     (@$($ln:tt),* => $slice:ident[$($range:tt)*]: $($rest:tt)*) => {
-        compile_error!("invalid size: size must be an expression surrouned by parentheses");
+        compile_error!("Invalid size: size must be an expression surrouned by parentheses!");
     };
 
     (@$($ln:tt),* => $slice:ident[$($range:tt)*] = ; $($rest:tt)*) => {
-        compile_error!("there must be a non-zero number of arguments in a list");
+        compile_error!("There must be a non-zero number of arguments in a list!");
     };
 
     (@$($ln:tt),* => $slice:ident[$($range:tt)*] $($rest:tt)*) => {
-        compile_error!("punctuation is missing!");
+        compile_error!("Punctuation is missing!");
     };
 
     (@$($ln:tt),* => ) => {};
     () => {};
     
     (@$($ln:tt),* => [$($range:tt)*] $($rest:tt)*) => {
-        compile_error!("missing identifier");
+        compile_error!("Missing identifier, there is a range, but no slice");
     };
     (@$($ln:tt),* => $($rest:tt)+) => {
-        compile_error!("missing rvalue");
+        compile_error!("Missing rvalue, there seems to be a missing slice to assign to");
     };
     ($($rest:tt)+) => {
         set_slice!(@0 => $($rest)+);
