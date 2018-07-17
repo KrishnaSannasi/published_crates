@@ -82,7 +82,9 @@ set_slice! {
 println!("array = {:?}", array); // this is fine, array was borrowed
 println!("vec = {:?}", vec); // this is fine, vec was borrowed
 assert_eq!(slice, &[1, 2, 0, 3, 4]);
+```
 
+```Rust
 #[derive(Clone, Debug, PartialEq)]
 enum A { Zero, One };
 let mut slice: [A; 5] = [A::Zero, A::Zero, A::Zero, A::Zero, A::Zero];

@@ -16,10 +16,10 @@ without setting each value individually
 
 ```ignore
 set_slice! {
-    SLICE: (SIZE) = VALUE;                           // move
     SLICE = VALUE_1, VALUE_2, VALUE_3, ...;          // list
-    SLICE = copy REFERENCE;                          // copy ref
+    SLICE: (SIZE) = VALUE;                           // move
     SLICE = clone REFERENCE;                         // clone ref
+    SLICE = copy REFERENCE;                          // copy ref
     ...
 }
 ```
@@ -50,23 +50,21 @@ assert_eq!(slice, [-1, -2, 3]);
 
 # Semantics and Notes on Syntax
 
+## list
+the list: `VALUE_1`, `VALUE_2`, `VALUE_3`, ... is counted and converted into an array \
+after conversion it is has the same semantics as move applied to the new array
+
 ## move
 the `VALUE` is moved into set_slice and dropped \
 the contents of `VALUE` are stored into the slice
 
-## list
-the list: `VALUE_1`, `VALUE_2`, `VALUE_3`, ... is counted and converted into an array \
-after conversion it is has the same semantics as move
+## clone
+the `REFERENCE` `&[T]` values are cloned into the slice \
+`T` must implement `Clone`
 
 ## copy
-the reference slice `&[T]` values are copied into the slice \
+the `REFERENCE` `&[T]` values are copied into the slice \
 `T` must implement `Copy`
-
-## clone
-the reference slice `&[T]` values are cloned into the slice \
-`T` must implement `Clone`
-Cargo features
-This crate provides two cargo features:
 
 # Cargo features
 This crate allows for use in no-std environment.
@@ -74,6 +72,32 @@ This crate allows for use in no-std environment.
 
 #[doc(hidden)]
 pub use core::ptr::swap as __swap_ptr;
+#[doc(hidden)]
+pub use core::ptr::read as __read_ptr;
+#[doc(hidden)]
+pub use core::ptr::write as __write_ptr;
+
+#[macro_export(local_inner_macros)]
+#[doc(hidden)]
+macro_rules! set_func {
+    (swap $slice:ident $value:ident) => {
+        unsafe { $crate::__swap_ptr($slice, $value); }
+    };
+    ($option:ident $LINE:ident $size:expr) => {
+        #[inline(always)]
+        fn set<T>(slice: &mut [T], value: &[T]) {
+            let (sl, vl) = (slice.len(), value.len());
+
+            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", $LINE, sl, $size);
+            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", $LINE, vl, $size);
+            
+            let value = value as *const [T] as *mut [T] as *mut [T; $size];
+            let slice = slice as *mut [T] as *mut [T; $size];
+            
+            set_func!($option slice value)
+        }
+    };
+}
 
 #[macro_export(local_inner_macros)]
 #[doc(hidden)]
@@ -104,28 +128,18 @@ macro_rules! __set_slice_internals {
     ($($ln:tt),* => $slice:expr, $size:expr, $value:expr) => {{
         const LINE: usize = count!($($ln)*);
 
-        #[inline(always)]
-        fn set<T>(slice: &mut [T], value: &[T]) {
-            let (sl, vl) = (slice.len(), value.len());
-
-            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", LINE, sl, $size);
-            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", LINE, vl, $size);
-            
-            let value = value as *const [T] as *mut [T] as *mut [T; $size];
-            let slice = slice as *mut [T] as *mut [T; $size];
-            
-            unsafe { $crate::__swap_ptr(slice, value); }
-        }
+        set_func!(swap LINE $size);
 
         let val = $value; // capture value
         set(&mut $slice, &val);
     }};
     ($($ln:tt),* => $slice:expr, $option:ident $value:expr) => {{
-        let input = $value;
+        const LINE: usize = count!($($ln)*);
+        let input: &_ = $value;
         let slice = &mut $slice;
         let (il, sl) = (input.len(), slice.len());
 
-        assert_eq!(il, sl, "ln({}) input length invalid: {}, expected: {}", count!($($ln)*), il, sl);
+        assert_eq!(il, sl, "ln({}) input length invalid: {}, expected: {}", LINE, il, sl);
 
         __set_slice_internals!($option slice, input);
     }};
@@ -265,19 +279,5 @@ mod tests {
         let _ = values;
 
         assert!(&v == &[0, 2, 3, 4, 5, 6, 7, 8]);
-    }
-
-    #[test]
-    fn doc_test() {
-        let mut slice = [0; 3]; // example slice
-        let vec = [-1, -2];
-
-
-        set_slice! {
-            slice = 1, 2, 3;
-            slice[..2] = copy &vec;
-        }
-
-        assert_eq!(slice, [-1, -2, 3]);
     }
 }
