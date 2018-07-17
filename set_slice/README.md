@@ -168,4 +168,12 @@ set_slice! {
     slice[..2] = clone &vec[1..];
     slice[..2] = clone &array[1..];
 }
+
+// works with any type, but is incredibly unsafe
+set_slice! {
+    unsafe slice: (3) = ref &vec;
+    unsafe slice: (3) = ref &array;
+    unsafe slice[..2]: (2) = ref &vec[1..];
+    unsafe slice[..2]: (2) = ref &array[1..];
+}
 ```

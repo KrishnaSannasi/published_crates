@@ -20,6 +20,7 @@ set_slice! {
     SLICE: (SIZE) = VALUE;                           // move
     SLICE = clone REFERENCE;                         // clone ref
     SLICE = copy REFERENCE;                          // copy ref
+    unsafe SLICE: (SIZE) = ref REFERENCE;            // unsafe copy ref
     ...
 }
 ```
@@ -58,6 +59,10 @@ after conversion it is has the same semantics as move applied to the new array
 the `VALUE` is moved into set_slice and dropped \
 the contents of `VALUE` are stored into the slice
 
+## copy
+the `REFERENCE` `&[T]` values are copied into the slice \
+`T` must implement `Copy`
+
 ## clone
 the `REFERENCE` `&[T]` values are cloned into the slice \
 `T` must implement `Clone`
@@ -66,6 +71,13 @@ the `REFERENCE` `&[T]` values are cloned into the slice \
 the `REFERENCE` `&[T]` values are copied into the slice \
 `T` must implement `Copy`
 
+## unsafe copy
+**VERY UNSAFE** \
+the `REFERENCE` `&[T]` values are copied into the slice \
+internally this uses ::core::mem::transmute_copy \
+so, use this with caution, as it may cause undefined behaviour \
+**VERY UNSAFE**
+
 # Cargo features
 This crate allows for use in no-std environment.
 */
@@ -73,9 +85,7 @@ This crate allows for use in no-std environment.
 #[doc(hidden)]
 pub use core::ptr::swap as __swap_ptr;
 #[doc(hidden)]
-pub use core::ptr::read as __read_ptr;
-#[doc(hidden)]
-pub use core::ptr::write as __write_ptr;
+pub use core::mem::transmute_copy as __transmute_copy_mem;
 
 #[macro_export(local_inner_macros)]
 #[doc(hidden)]
@@ -107,20 +117,20 @@ macro_rules! __set_slice_internals {
         const LINE: usize = count!($($ln)*);
 
         #[inline(always)]
-        fn set<T>(slice: &mut [T], value: &[T]) {
+        fn set<T>(slice: &mut [T], value: &mut [T]) {
             let (sl, vl) = (slice.len(), value.len());
 
-            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", $LINE, sl, $size);
-            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", $LINE, vl, $size);
+            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", LINE, sl, $size);
+            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", LINE, vl, $size);
             
-            let value = value as *const [T] as *mut [T] as *mut [T; $size];
+            let value = value as *mut [T] as *mut [T; $size];
             let slice = slice as *mut [T] as *mut [T; $size];
             
             unsafe { $crate::__swap_ptr(slice, value); }
         }
 
-        let val = $value; // capture value
-        set(&mut $slice, &val);
+        let mut val = $value; // capture value
+        set(&mut $slice, &mut val);
     }};
     ($($ln:tt),* => $slice:expr, $option:ident $value:expr) => {{
         const LINE: usize = count!($($ln)*);
@@ -132,12 +142,39 @@ macro_rules! __set_slice_internals {
 
         __set_slice_internals!($option slice, input);
     }};
+    ($($ln:tt),* => ref $slice:expr, $size:expr, $value:expr) => {{
+        const LINE: usize = count!($($ln)*);
+        let input: &_ = $value;
+        let slice = &mut $slice;
+
+        #[inline(always)]
+        fn set<T>(slice: &mut [T], value: &[T]) {
+            let (sl, vl) = (slice.len(), value.len());
+
+            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", LINE, sl, $size);
+            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", LINE, vl, $size);
+            
+            unsafe {
+                let slice = &mut *(slice as *mut [T] as *mut [T; $size]);
+                let value = &*(value as *const [T] as *const [T; $size]);
+
+                *slice = $crate::__transmute_copy_mem(value);
+            }
+        }
+
+        set(slice, input);
+    }};
 }
 
 /// a macro for setting parts of slices, see crate level docs for more info 
 #[macro_export]
 macro_rules! set_slice {
     // no range branches
+    (@$($ln:tt),* => unsafe $slice:ident: ($size:expr) = ref $value:expr; $($rest:tt)*) => {
+        __set_slice_internals!($($ln),* => ref $slice, $size, $value);
+        set_slice!(@$($ln,)* 0 => $($rest)*);
+    };
+
     (@$($ln:tt),* => $slice:ident: ($size:expr) = $value:expr; $($rest:tt)*) => {
         __set_slice_internals!($($ln),* => $slice, $size, $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
@@ -154,6 +191,11 @@ macro_rules! set_slice {
     };
 
     // with range branches
+    (@$($ln:tt),* => unsafe $slice:ident[$($range:tt)*]: ($size:expr) = ref $value:expr; $($rest:tt)*) => {
+        __set_slice_internals!($($ln),* => ref $slice[$($range)*], $size, $value);
+        set_slice!(@$($ln,)* 0 => $($rest)*);
+    };
+
     (@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
         __set_slice_internals!($($ln),* => $slice[$($range)*], $size, $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
@@ -271,5 +313,25 @@ mod tests {
         let _ = values;
 
         assert!(&v == &[0, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn set_slice_test_unsafe() {
+        #[derive(PartialEq, Debug)]
+        struct A(i32);
+        let mut v = [A(0), A(0), A(0), A(0), A(0), A(0), A(0), A(0)];
+        let values = [A(4), A(5), A(6)];
+        let array = [A(0), A(2)];
+        let deref = [A(7), A(8)];
+
+        set_slice! {
+            unsafe v[1..=2]: (2) = ref &[A(5), A(3)];
+            unsafe v[3..6]: (3) = ref &values;
+            unsafe v[..2]: (2) = ref &array;
+            unsafe v[6..]: (2) = ref &deref;
+        }
+        let _ = values;
+
+        assert_eq!(v, [A(0), A(2), A(3), A(4), A(5), A(6), A(7), A(8)]);
     }
 }
