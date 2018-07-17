@@ -1,0 +1,7 @@
+[package]
+name = "set_slice_test"
+version = "0.1.0"
+authors = ["Ozaren <krishna.sd.2012@gmail.com>"]
+
+[dependencies]
+set_slice = "0.2.3"
