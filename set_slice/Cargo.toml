@@ -1,12 +1,12 @@
 [package]
 name = "set_slice"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Ozaren <krishna.sd.2012@gmail.com>"]
 repository = "https://github.com/KrishnaSannasi/published_crates/tree/master/set_slice"
 description = "A macro for assigning values to slices"
 keywords = ["slice", "assign", "set"]
 categories = ["no-std", "embedded"]
-license-file = "LICENSE.md"
+license = "Apache-2.0"
 readme = "README.md"
 
 [dependencies]
