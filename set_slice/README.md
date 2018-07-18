@@ -40,6 +40,7 @@ assert_eq!(slice, [1, 2, 3, 0, 0]);
 ```
 
 you can also do multiple assigns in one macro call
+each instruction is executed in order, and can overwrite previous instructions
 ```rust
 let slice = &mut [0; 5] as &mut [i32];
 

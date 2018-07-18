@@ -51,6 +51,9 @@ assert_eq!(slice, [-1, -2, 3]);
 
 # Semantics and Notes on Syntax
 
+if multiple instructions are present, then each instruction is executed in order \
+and can overwrite previous instructions
+
 ## list
 the list: `VALUE_1`, `VALUE_2`, `VALUE_3`, ... is counted and converted into an array \
 after conversion it is has the same semantics as move applied to the new array
