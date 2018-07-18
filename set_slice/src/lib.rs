@@ -17,7 +17,7 @@ without setting each value individually
 ```ignore
 set_slice! {
     SLICE = VALUE_1, VALUE_2, VALUE_3, ...;          // list
-    SLICE: (SIZE) = VALUE;                           // move
+    SLICE = move VALUE;                              // move
     SLICE = clone REFERENCE;                         // clone ref
     SLICE = copy REFERENCE;                          // copy ref
     unsafe SLICE: (SIZE) = ref REFERENCE;            // unsafe copy ref
@@ -113,20 +113,15 @@ macro_rules! __set_slice_internals {
         compile_error!(stringify!(invalid option $option, valid options are copy, clone))
     };
 
-    ($($ln:tt),* => $slice:expr, $size:expr, $value:expr) => {{
+    ($($ln:tt),* => move $slice:expr, $value:expr) => {{
         const LINE: usize = count!($($ln)*);
 
         #[inline(always)]
         fn set<T>(slice: &mut [T], value: &mut [T]) {
             let (sl, vl) = (slice.len(), value.len());
 
-            assert_eq!(sl, $size, "line {}: slice length ({}) is invalid, excepted: {}", LINE, sl, $size);
-            assert_eq!(vl, $size, "line {}: value length ({}) is invalid, excepted: {}", LINE, vl, $size);
-            
-            let value = value as *mut [T] as *mut [T; $size];
-            let slice = slice as *mut [T] as *mut [T; $size];
-            
-            unsafe { $crate::__swap_ptr(slice, value); }
+            assert_eq!(sl, vl, "line {}: value length ({}) is invalid, excepted: {}", LINE, vl, sl);
+            slice.swap_with_slice(value);
         }
 
         let mut val = $value; // capture value
@@ -176,8 +171,8 @@ macro_rules! set_slice {
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
-    (@$($ln:tt),* => $slice:ident: ($size:expr) = $value:expr; $($rest:tt)*) => {
-        __set_slice_internals!($($ln),* => $slice, $size, $value);
+    (@$($ln:tt),* => $slice:ident = move $value:expr; $($rest:tt)*) => {
+        __set_slice_internals!($($ln),* => move $slice, $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
@@ -187,7 +182,7 @@ macro_rules! set_slice {
     };
 
     (@$($ln:tt),* => $slice:ident = $($value:expr),+; $($rest:tt)*) => {
-        __set_slice_internals!($($ln),* => $slice, count!($( $value )+), [$($value),+]);
+        __set_slice_internals!($($ln),* => move $slice, [$($value),+]);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
@@ -197,8 +192,8 @@ macro_rules! set_slice {
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
-    (@$($ln:tt),* => $slice:ident[$($range:tt)*]: ($size:expr) = $value:expr; $($rest:tt)*) => {
-        __set_slice_internals!($($ln),* => $slice[$($range)*], $size, $value);
+    (@$($ln:tt),* => $slice:ident[$($range:tt)*] = move $value:expr; $($rest:tt)*) => {
+        __set_slice_internals!($($ln),* => move $slice[$($range)*], $value);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
@@ -208,7 +203,7 @@ macro_rules! set_slice {
     };
 
     (@$($ln:tt),* => $slice:ident[$($range:tt)*] = $($value:expr),+; $($rest:tt)*) => {
-        __set_slice_internals!($($ln),* => $slice[$($range)*], count!($( $value )+), [$($value),+]);
+        __set_slice_internals!($($ln),* => move $slice[$($range)*], [$($value),+]);
         set_slice!(@$($ln,)* 0 => $($rest)*);
     };
 
@@ -298,12 +293,12 @@ mod tests {
 
         set_slice! {
             v[0..1] = value;
-            v[1..3]: (2) = array;
-            v[3..]: (3) = vec;
+            v[1..3] = move array;
+            v[3..] = move vec;
         }
         // println!("{:?}", vec); // COMPILE ERROR: use after move
 
-        assert!(&v == &[0, 2, 3, 4, 5, 6]);
+        assert_eq!(v, [0, 2, 3, 4, 5, 6]);
     }
 
     #[test]
@@ -314,7 +309,7 @@ mod tests {
             v[..] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
         }
 
-        assert!(&v == &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(v, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
         let mut v = [0; 10];
 
@@ -322,7 +317,7 @@ mod tests {
             v = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9;
         }
 
-        assert!(&v == &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(v, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
 
     #[test]
@@ -340,7 +335,7 @@ mod tests {
         }
         let _ = values;
 
-        assert!(&v == &[0, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(v, [0, 2, 3, 4, 5, 6, 7, 8]);
     }
 
     #[test]
